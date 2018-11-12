@@ -1,25 +1,17 @@
 ##############################
 # Implementation to train Alexnet in 16-bit floating point precision
 # TO DO:
-#   1. compile code
-#   2. Read remainder of code and run
-#   3. think about accuracy evaluation
-#   4. set all dtypes to 16bit
-#       - change function parameters:
-#           which to change? read paper and email
-#       - adjust parameters in some functions ,e.g. LRN to reflect the precision limit
-
-#Other considerations:
-#   1. Read caffe code to learn more how it trains the network
-#   2. Consider the possibility of not training the network but quantizing the
-#      trained activations
-
-
-# What to set for these variables?
-#    stddev for random initialization of variables, used paper value of 0.01
-#    bias initialization: used default zero, different from paper
-#    LRN: depth_radius: 2/2/5, bias: 1/1/2, alpha: 2e-5/1e-5/1e-4
-#           (ours/alexnet_train/paper)
+# 1. Find how to use weight decay with variables: read caffe code
+#    https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet
+# 2. Understand what truncated_normal_initializer does
+# 3. What to set for these variables?
+#    wd for each variable
+#    stddev for random initialization of variables
+#    LRN: keep intact (?)
+# 4. Replace variable defs in conv and fc layers using this
+# 5. Read caffe code to learn more how it trains the network
+# 6. Consider the possibility of not training the network but quantizing the
+# 7. trained activations
 
 import tensorflow as tf
 import os
@@ -34,7 +26,7 @@ import numpy as np
 from datetime import datetime
 now = datetime.now()
 
-def variable_with_random_init(name, shape, randstddev):
+def variable_with_weight_decay(name, shape, wd, randstddev):
     var = tf.get_variable(
             name,
             shape,
@@ -43,9 +35,9 @@ def variable_with_random_init(name, shape, randstddev):
                         dtype=tf.float32),
             dtype=tf.float32,
             trainable=True)
-    # if wd is not None:
-    #     weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
-    #     tf.add_to_collection('losses', weight_decay)
+    if wd is not None:
+        weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
+        tf.add_to_collection('losses', weight_decay)
     return var
 
 # Max pooling layer
@@ -78,11 +70,11 @@ def LRN(x, R, alpha, beta, name = None, bias = 1.0):
 #             return clipped_out
 
 # Fully connect layer with no bound
-def fcLayer(x, inputD, outputD, reluFlag = True, name):
+def fcLayer(x, inputD, outputD, reluFlag = True, wd, name):
     """fully-connect"""
     with tf.variable_scope(name) as scope:
-        w = variable_with_random_init("w", shape=[inputD, outputD], 0.01)
-        #  = tf.get_variable("w", shape = [inputD, outputD], dtype = "float")
+        w = variable_with_weight_decay("w", shape = [inputD, outputD], wd, 0.01)
+        # w = tf.get_variable("w", shape = [inputD, outputD], dtype = "float")
         b = tf.get_variable("b", [outputD], dtype = "float")
         out = tf.nn.xw_plus_b(x, w, b, name = scope.name)
         if reluFlag:
@@ -94,18 +86,15 @@ def fcLayer(x, inputD, outputD, reluFlag = True, name):
 # Filter has the shape [kHeight, kWidth, num_of_input_channels, featureNUM],
 # where featureNUM is the output # of channels
 def convLayer(x, kHeight, kWidth, strideX, strideY,
-              featureNum, name, padding = "SAME", groups = 1): #group=2 means the second part of AlexNet
+              featureNum, wd, name, padding = "SAME", groups = 1): #group=2 means the second part of AlexNet
     """convlutional"""
     channel = int(x.get_shape()[-1]) #get channel
-    convolve = lambda a, b: tf.nn.conv2d(
-        a, b,
-        strides = [1, strideY, strideX, 1],
-        padding = padding)
+    convolve = lambda a, b: tf.nn.conv2d(a, b, strides = [1, strideY, strideX, 1], padding = padding)
     with tf.variable_scope(name) as scope:
-        w = variable_with_random_init(
+        w = variable_with_weight_decay(
             "w",
-            shape=[kHeight, kWidth, channel/groups, featureNum],
-            0.01)
+            shape = [kHeight, kWidth, channel/groups, featureNum],
+            wd, 0.01)
         #w = tf.get_variable("w", shape = [kHeight, kWidth, channel/groups, featureNum])
         b = tf.get_variable("b", shape = [featureNum])
 
@@ -151,19 +140,19 @@ class AlexNet_train(object):
 
         self.conv3 = convLayer(self.pool2, 3, 3, 1, 1, 384, "conv3")
 
-        self.conv4 = convLayer(self.conv3, 3, 3, 1, 1, 384, "conv4", groups = 2)
+        self.conv4 = convLayer(self.conv3, 3, 3, 1, 1, 384, "conv4" groups = 2)
 
-        self.conv5 = convLayer(self.conv4, 3, 3, 1, 1, 256, "conv5", groups = 2)
+        self.conv5 = convLayer(self.conv4, 3, 3, 1, 1, 256, "conv5" groups = 2)
         self.pool5 = maxPoolLayer(self.conv5, 3, 3, 2, 2, "pool5", "VALID")
 
         self.fcIn = tf.reshape(self.pool5, [-1, 256 * 6 * 6])
         self.fc6 = fcLayer_nb(self.fcIn, 256 * 6 * 6, 4096, True, "fc6")
         self.dropout1 = dropout(self.fc6, self.KEEPPRO)
 
-        self.fc7 = fcLayer(self.dropout1, 4096, 4096, True, "fc7")
+        self.fc7 = fcLayer_nb(self.dropout1, 4096, 4096, True, "fc7")
         self.dropout2 = dropout(self.fc7, self.KEEPPRO)
 
-        self.fc8 = fcLayer(self.dropout2, 4096, self.CLASSNUM, False, "fc8")
+        self.fc8 = fcLayer_nb(self.dropout2, 4096, self.CLASSNUM, False, "fc8")
 
         self.layers = {
             'conv1': self.conv1,
@@ -315,11 +304,11 @@ def _walk(top):
         for x in _walk(path):
             yield x
 
-# def total_cost(logits, labels):
-#     cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
-#         logits=logits, labels=labels), name='cross_entropy')
-#     tf.add_to_collection('losses', cross_entropy)
-#     return tf.add_n(tf.get_collection('losses'), name='total_cost')
+def total_cost(logits, labels):
+    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+        logits=logits, labels=labels), name='cross_entropy')
+    tf.add_to_collection('losses', cross_entropy)
+    return tf.add_n(tf.get_collection('losses'), name='total_cost')
 
 def main(_):
     # here we train and validate the model
@@ -365,9 +354,9 @@ def main(_):
 
     model_prediction = tf.nn.softmax(model_train)
 
-    cost = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=y))
-
+    cost = total_cost(logits=logits, labels=y)
+    # cost = tf.reduce_mean(
+    #     tf.nn.softmax_cross_entropy_with_logits(logits=model_train, labels=y))
     global_step = tf.Variable(0, trainable=False, name='global_step')
 
     lr = tf.train.exponential_decay(0.01, global_step, 100000, 0.1,

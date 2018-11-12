@@ -1,200 +1,167 @@
-##############################
-# Implementation to train Alexnet in 16-bit floating point precision
-# TO DO:
-#   1. compile code
-#   2. Read remainder of code and run
-#   3. think about accuracy evaluation
-#   4. set all dtypes to 16bit
-#       - change function parameters:
-#           which to change? read paper and email
-#       - adjust parameters in some functions ,e.g. LRN to reflect the precision limit
+#!/usr/bin/env python2.7
+# This piece of script is obtained from
+# https://github.com/jakubkarczewski/AlexNet/blob/master/alexnet.py
+# Copyright 2016 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
 
-#Other considerations:
-#   1. Read caffe code to learn more how it trains the network
-#   2. Consider the possibility of not training the network but quantizing the
-#      trained activations
+r"""Train and export AlexNet TensorFlow model.
+Usage: alexnet.py [--training_epoch=x] [--model_version=y] \
+    export_dir
+"""
 
-
-# What to set for these variables?
-#    stddev for random initialization of variables, used paper value of 0.01
-#    bias initialization: used default zero, different from paper
-#    LRN: depth_radius: 2/2/5, bias: 1/1/2, alpha: 2e-5/1e-5/1e-4
-#           (ours/alexnet_train/paper)
+import os
+import sys
+import time
 
 import tensorflow as tf
-import os
-import psycopg2
-import urllib.request
-import argparse
-import sys
-import cv2
-#import matplotlib.pyplot as plt
-import random
 import numpy as np
-from datetime import datetime
-now = datetime.now()
+import cv2
 
-def variable_with_random_init(name, shape, randstddev):
-    var = tf.get_variable(
-            name,
-            shape,
-            initializer=tf.truncated_normal_initializer( #?? What is this?
-                        stddev=stddev,
-                        dtype=tf.float32),
-            dtype=tf.float32,
-            trainable=True)
-    # if wd is not None:
-    #     weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
-    #     tf.add_to_collection('losses', weight_decay)
-    return var
+#TODO apply weight_decay=0.0005 and check if training_accuracy frequency is ok
 
-# Max pooling layer
-def maxPoolLayer(x, kHeight, kWidth, strideX, strideY, name, padding = "SAME"):
-    return tf.nn.max_pool(x, ksize = [1, kHeight, kWidth, 1],
-                          strides = [1, strideX, strideY, 1], padding = padding, name = name)
-
-# Drop-out layer
-def dropout(x, keepPro, name = None):
-    return tf.nn.dropout(x, keepPro, name)
-
-# LRN layer
-def LRN(x, R, alpha, beta, name = None, bias = 1.0):
-    return tf.nn.local_response_normalization(x, depth_radius = R, alpha = alpha,
-                                              beta = beta, bias = bias, name = name)
-
-# Fully connect layer
-# Apply a clipping to the layer's bound.
-# Due to the susequent application of ReLU, there is no need to clip a minimum, we clip it to -3000 just as is.
-# def fcLayer_bound(x, inputD, outputD, reluFlag, name, bound):
-#     """fully-connect"""
-#     with tf.variable_scope(name) as scope:
-#         w = tf.get_variable("w", shape = [inputD, outputD], dtype = "float")
-#         b = tf.get_variable("b", [outputD], dtype = "float")
-#         out = tf.nn.xw_plus_b(x, w, b, name = scope.name)
-#         clipped_out = tf.clip_by_value(out, -3000, bound[name[:3]])
-#         if reluFlag:
-#             return tf.nn.relu(clipped_out)
-#         else:
-#             return clipped_out
-
-# Fully connect layer with no bound
-def fcLayer(x, inputD, outputD, reluFlag = True, name):
-    """fully-connect"""
-    with tf.variable_scope(name) as scope:
-        w = variable_with_random_init("w", shape=[inputD, outputD], 0.01)
-        #  = tf.get_variable("w", shape = [inputD, outputD], dtype = "float")
-        b = tf.get_variable("b", [outputD], dtype = "float")
-        out = tf.nn.xw_plus_b(x, w, b, name = scope.name)
-        if reluFlag:
-            return tf.nn.relu(out)
-        else:
-            return out
-
-# convlayer that is not clipped
-# Filter has the shape [kHeight, kWidth, num_of_input_channels, featureNUM],
-# where featureNUM is the output # of channels
-def convLayer(x, kHeight, kWidth, strideX, strideY,
-              featureNum, name, padding = "SAME", groups = 1): #group=2 means the second part of AlexNet
-    """convlutional"""
-    channel = int(x.get_shape()[-1]) #get channel
-    convolve = lambda a, b: tf.nn.conv2d(
-        a, b,
-        strides = [1, strideY, strideX, 1],
-        padding = padding)
-    with tf.variable_scope(name) as scope:
-        w = variable_with_random_init(
-            "w",
-            shape=[kHeight, kWidth, channel/groups, featureNum],
-            0.01)
-        #w = tf.get_variable("w", shape = [kHeight, kWidth, channel/groups, featureNum])
-        b = tf.get_variable("b", shape = [featureNum])
-
-        if groups == 1:
-            conv = convolve(x, w)
-        else:
-            xNew = tf.split(value = x, num_or_size_splits = groups, axis = 3)#input and weights after split
-            wNew = tf.split(value = w, num_or_size_splits = groups, axis = 3)
-            output_groups = [convolve(t1, t2) for t1, t2 in zip(xNew, wNew)] #retriving the feature map separately
-            conv = tf.concat(axis = 3, values = featureMap) #concatnating feature map
-        # print mergeFeatureMap.shape
-        bias = tf.reshape(tf.nn.bias_add(conv, b), tf.shape(conv))
-        # Clip value
-        # clipped_out = tf.clip_by_value(out, -3000, bound[name[:5]])
-        return tf.nn.relu(bias, name = scope.name)
+tf.app.flags.DEFINE_integer('training_epoch', 1,
+                            'number of training epochs.')
+tf.app.flags.DEFINE_integer('model_version', 1, 'version number of the model.')
+tf.app.flags.DEFINE_string('work_dir', '/tmp', 'Working directory.')
+FLAGS = tf.app.flags.FLAGS
+OUTPUT_DIR = '/output'
 
 
-class AlexNet_train(object):
-    """alexNet model"""
-    def __init__(self, x, keepPro, classNum = 1000):
+class AlexNet(object):
+
+    def __init__(self, x, keep_prob, num_classes=1000):
+        # Parse input arguments into class variables
         self.X = x
-        self.KEEPPRO = keepPro
-        self.CLASSNUM = classNum
-        #build CNN
-        self.buildCNN()
+        self.NUM_CLASSES = num_classes
+        self.KEEP_PROB = keep_prob
 
-    # Building the network
-    def buildCNN(self):
-        """build model"""
-        self.conv1 = convLayer(self.X, 11, 11, 4, 4, 96, "conv1", "VALID")
-        # def       LRN(x, R, alpha, beta, name = None, bias = 1.0):
-        self.lrn1 = LRN(self.conv1, 2, 2e-05, 0.75, "norm1")
-        # def          maxPoolLayer(x, kHeight, kWidth, strideX, strideY, name, padding = "SAME")
-        self.pool1 = maxPoolLayer(self.lrn1, 3, 3, 2, 2, "pool1", "VALID")
+        # Call the create function to build the computational graph of AlexNet
+        self.create()
 
-        self.conv2 = convLayer(self.pool1, 5, 5, 1, 1, 256, "conv2", groups = 2)
+    def create(self):
 
-        # def convLayer(x, kHeight, kWidth, strideX, strideY,
-        #          featureNum, name, padding = "SAME", groups = 1)
+        self.X = tf.reshape(self.X, shape=[-1, 227, 227, 3])
 
-        self.lrn2 = LRN(self.conv2, 2, 2e-05, 0.75, "lrn2")
-        self.pool2 = maxPoolLayer(self.lrn2, 3, 3, 2, 2, "pool2", "VALID")
+        # 1st Layer: Conv (w ReLu) -> Lrn -> Pool
+        conv1 = conv(self.X, 11, 11, 96, 4, 4, padding='VALID', name='conv1')
+        norm1 = lrn(conv1, 2, 1e-05, 0.75, name='norm1')
+        pool1 = max_pool(norm1, 3, 3, 2, 2, padding='VALID', name='pool1')
 
-        self.conv3 = convLayer(self.pool2, 3, 3, 1, 1, 384, "conv3")
+        # 2nd Layer: Conv (w ReLu)  -> Lrn -> Pool with 2 groups
+        conv2 = conv(pool1, 5, 5, 256, 1, 1, groups=2, name='conv2')
+        norm2 = lrn(conv2, 2, 1e-05, 0.75, name='norm2')
+        pool2 = max_pool(norm2, 3, 3, 2, 2, padding='VALID', name='pool2')
 
-        self.conv4 = convLayer(self.conv3, 3, 3, 1, 1, 384, "conv4", groups = 2)
+        # 3rd Layer: Conv (w ReLu)
+        conv3 = conv(pool2, 3, 3, 384, 1, 1, name='conv3')
 
-        self.conv5 = convLayer(self.conv4, 3, 3, 1, 1, 256, "conv5", groups = 2)
-        self.pool5 = maxPoolLayer(self.conv5, 3, 3, 2, 2, "pool5", "VALID")
+        # 4th Layer: Conv (w ReLu) splitted into two groups
+        conv4 = conv(conv3, 3, 3, 384, 1, 1, groups=2, name='conv4')
 
-        self.fcIn = tf.reshape(self.pool5, [-1, 256 * 6 * 6])
-        self.fc6 = fcLayer_nb(self.fcIn, 256 * 6 * 6, 4096, True, "fc6")
-        self.dropout1 = dropout(self.fc6, self.KEEPPRO)
+        # 5th Layer: Conv (w ReLu) -> Pool splitted into two groups
+        conv5 = conv(conv4, 3, 3, 256, 1, 1, groups=2, name='conv5')
+        pool5 = max_pool(conv5, 3, 3, 2, 2, padding='VALID', name='pool5')
 
-        self.fc7 = fcLayer(self.dropout1, 4096, 4096, True, "fc7")
-        self.dropout2 = dropout(self.fc7, self.KEEPPRO)
+        # 6th Layer: Flatten -> FC (w ReLu) -> Dropout
+        flattened = tf.reshape(pool5, [-1, 6 * 6 * 256])
+        fc6 = fc(flattened, 6 * 6 * 256, 4096, name='fc6')
+        dropout6 = dropout(fc6, self.KEEP_PROB)
 
-        self.fc8 = fcLayer(self.dropout2, 4096, self.CLASSNUM, False, "fc8")
+        # 7th Layer: FC (w ReLu) -> Dropout
+        fc7 = fc(dropout6, 4096, 4096, name='fc7')
+        dropout7 = dropout(fc7, self.KEEP_PROB)
 
-        self.layers = {
-            'conv1': self.conv1,
-            'lrn1': self.lrn1,
-            'pool1': self.pool1,
-            'conv2': self.conv2,
-            'lrn2': self.lrn2,
-            'pool2': self.pool2,
-            'conv3': self.conv3,
-            'conv4': self.conv4,
-            'conv5': self.conv5,
-            'pool5': self.pool5,
-            'fcIn': self.fcIn,
-            'fc6': self.fc6,
-            'dropout1': self.dropout1,
-            'fc7': self.fc7,
-            'dropout2': self.dropout2,
-            'fc8': self.fc8
-        }
+        # 8th Layer: FC and return unscaled activations
+        self.fc8 = fc(dropout7, 4096, self.NUM_CLASSES, relu=False, name='fc8')
 
-    # A handy function to get the activation of certain layer
-    def get_act(self, layer_name='fc8'):
-        #print(self.layers[layer_name])
-        return self.layers[layer_name]
+def conv(x, filter_height, filter_width, num_filters, stride_y, stride_x, name,
+         padding='SAME', groups=1):
+    # Get number of input channels
+    input_channels = int(x.get_shape()[-1])
 
-    def output(self):
-        return self.fc8
+    # Create lambda function for the convolution
+    convolve = lambda i, k: tf.nn.conv2d(i, k,
+                                         strides=[1, stride_y, stride_x, 1],
+                                         padding=padding)
 
-#################################################
-# The following is copied from alexnet_train.py #
-#################################################
+    with tf.variable_scope(name) as scope:
+        # Create tf variables for the weights and biases of the conv layer
+        weights = tf.get_variable('weights', shape=[filter_height,
+                                                    filter_width,
+                                                    input_channels / groups,
+                                                    num_filters])
+        biases = tf.get_variable('biases', shape=[num_filters])
+
+    if groups == 1:
+        conv = convolve(x, weights)
+
+    # In the cases of multiple groups, split inputs & weights and
+    else:
+        # Split input and weights and convolve them separately
+        input_groups = tf.split(axis=3, num_or_size_splits=groups, value=x)
+        weight_groups = tf.split(axis=3, num_or_size_splits=groups,
+                                 value=weights)
+        output_groups = [convolve(i, k) for i, k in
+                         zip(input_groups, weight_groups)]
+
+        # Concat the convolved output together again
+        conv = tf.concat(axis=3, values=output_groups)
+
+    # Add biases
+    bias = tf.reshape(tf.nn.bias_add(conv, biases), tf.shape(conv))
+
+    # Apply relu function
+    relu = tf.nn.relu(bias, name=scope.name)
+
+    return relu
+
+
+def fc(x, num_in, num_out, name, relu=True):
+    with tf.variable_scope(name) as scope:
+
+        # Create tf variables for the weights and biases
+        weights = tf.get_variable('weights', shape=[num_in, num_out],
+                                  trainable=True)
+        biases = tf.get_variable('biases', [num_out], trainable=True)
+
+        # Matrix multiply weights and inputs and add bias
+        act = tf.nn.xw_plus_b(x, weights, biases, name=scope.name)
+
+    if relu:
+        # Apply ReLu non linearity
+        relu = tf.nn.relu(act)
+        return relu
+    else:
+        return act
+
+
+def max_pool(x, filter_height, filter_width, stride_y, stride_x, name,
+             padding='SAME'):
+    return tf.nn.max_pool(x, ksize=[1, filter_height, filter_width, 1],
+                          strides=[1, stride_y, stride_x, 1],
+                          padding=padding, name=name)
+
+
+def lrn(x, radius, alpha, beta, name, bias=1.0):
+    return tf.nn.local_response_normalization(x, depth_radius=radius,
+                                              alpha=alpha, beta=beta,
+                                              bias=bias, name=name)
+
+
+def dropout(x, keep_prob):
+    return tf.nn.dropout(x, keep_prob)
 
 class Dataset:
     ''' Class for handling Imagenet data '''
@@ -315,12 +282,6 @@ def _walk(top):
         for x in _walk(path):
             yield x
 
-# def total_cost(logits, labels):
-#     cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
-#         logits=logits, labels=labels), name='cross_entropy')
-#     tf.add_to_collection('losses', cross_entropy)
-#     return tf.add_n(tf.get_collection('losses'), name='total_cost')
-
 def main(_):
     # here we train and validate the model
 
@@ -360,14 +321,13 @@ def main(_):
     y = tf.placeholder(tf.float32, [None, n_classes])
     keep_prob = tf.placeholder(tf.float32)
 
-    model = AlexNet_train(x_3d, keep_prob, num_classes=n_classes)
-    logits = model.output()
+    model = AlexNet(x_3d, keep_prob=keep_prob, num_classes=n_classes)
+    model_train = model.fc8
 
     model_prediction = tf.nn.softmax(model_train)
 
     cost = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=y))
-
+        tf.nn.softmax_cross_entropy_with_logits(logits=model_train, labels=y))
     global_step = tf.Variable(0, trainable=False, name='global_step')
 
     lr = tf.train.exponential_decay(0.01, global_step, 100000, 0.1,
