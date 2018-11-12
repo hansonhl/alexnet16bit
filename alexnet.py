@@ -13,6 +13,7 @@
 #   1. Read caffe code to learn more how it trains the network
 #   2. Consider the possibility of not training the network but quantizing the
 #      trained activations
+#   3. How to use weight decay together with MomentumOptimizer?
 
 
 # What to set for these variables?
