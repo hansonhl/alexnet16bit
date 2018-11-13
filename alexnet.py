@@ -1,6 +1,8 @@
 #!/usr/bin/env python2.7
 # This piece of script is obtained from
 # https://github.com/jakubkarczewski/AlexNet/blob/master/alexnet.py
+#
+#
 # Copyright 2016 Google Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,37 +22,51 @@
 # TO DO:
 #   1. compile code
 #   2. Read remainder of code and run
-#   3. think about accuracy evaluation
-#   4. set all dtypes to 16bit
-#       - change function parameters:
-#           which to change? read paper and email
-#       - adjust parameters in some functions ,e.g. LRN to reflect the precision limit
+#   3. Think about accuracy evaluation
+
+# What to set for these variables, in the context of float16?
+#   - stddev for random initialization of variables, used paper value of 0.01
+#   - bias initialization: used default zero, different from paper
+#   - LRN: depth_radius: 2/2/5, bias: 1/1/2, alpha: 2e-5/1e-5/1e-4
+#           (ours/alexnet_train/paper)
 
 #Other considerations:
 #   1. Read caffe code to learn more how it trains the network
-#   2. Consider the possibility of not training the network but quantizing the
-#      trained activations
-#   3. How to use weight decay together with MomentumOptimizer?
+#   2. How to use weight decay together with MomentumOptimizer?
+#   3. Consider whether or not to implement Loss scaling, as mentioned in
+#   the NVIDIA tutorial.
 
-
-# What to set for these variables?
-#    stddev for random initialization of variables, used paper value of 0.01
-#    bias initialization: used default zero, different from paper
-#    LRN: depth_radius: 2/2/5, bias: 1/1/2, alpha: 2e-5/1e-5/1e-4
-#           (ours/alexnet_train/paper)
 
 import tensorflow as tf
 import os
-import psycopg2
-import urllib.request
+#import psycopg2
+#import urllib.request
 import argparse
 import sys
-import cv2
+#import cv2
 #import matplotlib.pyplot as plt
 import random
 import numpy as np
 from datetime import datetime
 now = datetime.now()
+
+# The following custom getter function is obtained from:
+# https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html#training_tensorflow
+def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
+                                    initializer=None, regularizer=None,
+                                    trainable=True,
+                                    *args, **kwargs):
+    """Custom variable getter that forces trainable variables to be stored in
+    float32 precision and then casts them to the training precision.
+    """
+    storage_dtype = tf.float32 if trainable else dtype
+    variable = getter(name, shape, dtype=storage_dtype,
+                      initializer=initializer, regularizer=regularizer,
+                      trainable=trainable,
+                      *args, **kwargs)
+    if trainable and dtype != tf.float32:
+        variable = tf.cast(variable, dtype)
+    return variable
 
 def variable_with_random_init(name, shape, randstddev):
     var = tf.get_variable(
@@ -58,8 +74,8 @@ def variable_with_random_init(name, shape, randstddev):
             shape,
             initializer=tf.truncated_normal_initializer( #?? What is this?
                         stddev=stddev,
-                        dtype=tf.float32),
-            dtype=tf.float32,
+                        dtype=tf.float16),
+            dtype=tf.float16,
             trainable=True)
     # if wd is not None:
     #     weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
@@ -96,12 +112,12 @@ def LRN(x, R, alpha, beta, name = None, bias = 1.0):
 #             return clipped_out
 
 # Fully connect layer with no bound
-def fcLayer(x, inputD, outputD, reluFlag = True, name):
+def fcLayer(x, inputD, outputD, reluFlag, name):
     """fully-connect"""
-    with tf.variable_scope(name) as scope:
-        w = variable_with_random_init("w", shape=[inputD, outputD], 0.01)
+    with tf.variable_scope(name, custom_getter=float32_variable_storage_getter) as scope:
+        w = variable_with_random_init("w", [inputD, outputD], 0.01)
         #  = tf.get_variable("w", shape = [inputD, outputD], dtype = "float")
-        b = tf.get_variable("b", [outputD], dtype = "float")
+        b = tf.get_variable("b", [outputD], dtype = tf.float16)
         out = tf.nn.xw_plus_b(x, w, b, name = scope.name)
         if reluFlag:
             return tf.nn.relu(out)
@@ -119,13 +135,13 @@ def convLayer(x, kHeight, kWidth, strideX, strideY,
         a, b,
         strides = [1, strideY, strideX, 1],
         padding = padding)
-    with tf.variable_scope(name) as scope:
+    with tf.variable_scope(name, custom_getter=float32_variable_storage_getter) as scope:
         w = variable_with_random_init(
             "w",
-            shape=[kHeight, kWidth, channel/groups, featureNum],
+            [kHeight, kWidth, channel/groups, featureNum],
             0.01)
         #w = tf.get_variable("w", shape = [kHeight, kWidth, channel/groups, featureNum])
-        b = tf.get_variable("b", shape = [featureNum])
+        b = tf.get_variable("b", shape = [featureNum], dtype = tf.float16)
 
         if groups == 1:
             conv = convolve(x, w)
@@ -210,10 +226,6 @@ class AlexNet_train(object):
     def output(self):
         return self.fc8
 
-#################################################
-# The following is copied from alexnet_train.py #
-#################################################
-
 class Dataset:
     ''' Class for handling Imagenet data '''
 
@@ -249,7 +261,7 @@ class Dataset:
 
     def preprocess(self, img):
         pp = cv2.resize(img, (227, 227))
-        pp = np.asarray(pp, dtype=np.float32)
+        pp = np.asarray(pp, dtype=np.float16) ###### Changed this to float16
         pp /= 255
         pp = pp.reshape((pp.shape[0], pp.shape[1], 3))
         return pp
@@ -371,7 +383,7 @@ def main(_):
     img_channel = 3
     num_epochs = FLAGS.training_epoch
 
-    x_flat = tf.placeholder(tf.float32,
+    x_flat = tf.placeholder(tf.float16, ##### Let input be float16
                             (None, image_size * image_size * img_channel))
     x_3d = tf.reshape(x_flat, shape=(tf.shape(x_flat)[0], image_size,
                                      image_size, img_channel))
@@ -379,7 +391,8 @@ def main(_):
     keep_prob = tf.placeholder(tf.float32)
 
     model = AlexNet_train(x_3d, keep_prob, num_classes=n_classes)
-    logits = model.output()
+    ##### cast logits to float32 to calculate loss
+    logits = tf.cast(model.output(), tf.float32)
 
     model_prediction = tf.nn.softmax(model_train)
 
