@@ -355,7 +355,7 @@ def main(_):
     # here we train and validate the model
 
     print('Loading data')
-    training = Dataset('/data/i1k-extracted/train')
+    training = Dataset('/local/train')
     testing = Dataset('/data/i1k-extracted/val')
     print('Data loaded.')
 
@@ -390,7 +390,7 @@ def main(_):
 
     model = AlexNet_train(x_3d, keep_prob, num_classes=n_classes)
     ##### cast logits to float32 to calculate loss
-    logits = tf.cast(model.output(), tf.float32)
+    model_train = tf.cast(model.output(), tf.float32)
 
     model_prediction = tf.nn.softmax(model_train)
 
