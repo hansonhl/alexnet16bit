@@ -89,7 +89,7 @@ def maxPoolLayer(x, kHeight, kWidth, strideX, strideY, name, padding = "SAME"):
 
 # Drop-out layer
 def dropout(x, keepPro, name = None):
-    return tf.nn.dropout(x, keepPro, name)
+    return tf.nn.dropout(x, keepPro, name=name)
 
 # LRN layer
 def LRN(x, R, alpha, beta, name = None, bias = 1.0):
