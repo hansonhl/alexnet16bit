@@ -277,7 +277,7 @@ class Dataset:
         self.mean = np.zeros((input_mean.shape[1], input_mean.shape[2], input_mean.shape[0]))
         for c in range(self.mean.shape[2]):
             self.mean[:,:,c] = input_mean[c,:,:]
-        print('-- Shape of mean array:', self.mean.shape)
+
 
     def __len__(self):
         return self.num_records
@@ -329,11 +329,7 @@ class Dataset:
             # only crop the center 227x227 square when testing
             offset = (256 - dest_size) // 2
         pp = pp[offset:(offset+dest_size), offset:(offset+dest_size), :]
-        print(pp)
-        print("Cropped 227x227 pp", pp.shape)
         pp = np.asarray(pp, dtype=np.float16)
-        print(pp)
-        print("Reduced precision pp:", pp.shape)
         return pp
 
     def next_record_f(self):
