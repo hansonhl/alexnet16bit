@@ -370,7 +370,7 @@ def create_image_list(image_path):
         w = _walk(walk_path)
         while True:
             try:
-                dirpath, dirnames, filenames = w.next()
+                dirpath, dirnames, filenames = next(w)
             except StopIteration:
                 break
             # Don't enter directories that begin with '.'
