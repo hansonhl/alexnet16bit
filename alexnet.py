@@ -433,12 +433,7 @@ test_label, test_input = testing.next_record_f()
 """
 def main(_):
     # here we train and validate the model
-
-    print('Loading data')
-    training = Dataset('/local/train', 'mean.npy', True, False)
-    testing = Dataset('/local/val_images', 'mean.npy', False, True, 'val.txt')
-    print('Data loaded.')
-
+    """
     if len(sys.argv) < 2 or sys.argv[-1].startswith('-'):
         print('Usage: alexnet.py [--training_epoch=x] '
               '[--model_version=y] export_dir')
@@ -449,6 +444,16 @@ def main(_):
     if FLAGS.model_version <= 0:
         print('Please specify a positive value for version number.')
         sys.exit(-1)
+    """
+    training_epoch = 1
+    model_version = 0.01
+    export_dir = "alexout"
+
+
+    print('Loading data')
+    training = Dataset('/local/train', 'mean.npy', True, False)
+    testing = Dataset('/local/val_images', 'mean.npy', False, True, 'val.txt')
+    print('Data loaded.')
 
     batch_size = 128
     display_step = 20
@@ -459,7 +464,7 @@ def main(_):
     print(n_classes)
     image_size = 227
     img_channel = 3
-    num_epochs = FLAGS.training_epoch
+    num_epochs = training_epoch
 
     x_flat = tf.placeholder(tf.float16, ##### Let input be float16
                             (None, image_size * image_size * img_channel))
@@ -533,10 +538,11 @@ def main(_):
         print("Min accuracy is", min(acc_list))
 
         # save model using SavedModelBuilder from TF
-        export_path_base = sys.argv[-1]
+        # export_path_base = sys.argv[-1]
+        export_path_base = export_dir
         export_path = os.path.join(
             tf.compat.as_bytes(export_path_base),
-            tf.compat.as_bytes(str(FLAGS.model_version)))
+            tf.compat.as_bytes(str(model_version)))
         print('Exporting trained model to', export_path)
         builder = tf.saved_model.builder.SavedModelBuilder(export_path)
 
