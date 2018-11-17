@@ -43,7 +43,7 @@ import os
 #import urllib.request
 import argparse
 import sys
-#import cv2
+import cv2
 #import matplotlib.pyplot as plt
 import random
 import numpy as np
@@ -241,7 +241,6 @@ class Dataset:
             print("-- Shuffling data ...")
             np.random.shuffle(self.data)
             self.num_records = len(self.data)
-            print(type(self.data))
             self.next_record = 0
 
             self.labels, self.inputs = zip(*self.data)
@@ -417,6 +416,14 @@ def _walk(top):
 #         logits=logits, labels=labels), name='cross_entropy')
 #     tf.add_to_collection('losses', cross_entropy)
 #     return tf.add_n(tf.get_collection('losses'), name='total_cost')
+
+print('Loading data')
+training = Dataset('/local/train', 'mean.npy', True, False)
+testing = Dataset('/local/val_images', 'mean.npy', False, True, 'val.txt')
+print('Data loaded.')
+train_label, train_input = training.next_record_f()
+print(train_label)
+print(train_input.shape)
 
 """
 def main(_):
