@@ -258,6 +258,7 @@ class Dataset:
             print("Finished loading dataset")
 
         else:
+            self.data = []
             with open(auxfile_path, 'r') as f:
                 for line in f:
                     filename, category_num = line.split(' ')
