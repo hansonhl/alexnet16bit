@@ -15,7 +15,7 @@
 # limitations under the License.
 # ==============================================================================
 
-r"""Train and export AlexNet TensorFlow model.
+"""Train and export AlexNet TensorFlow model.
 Usage: alexnet.py [--training_epoch=x] [--model_version=y] \
     export_dir
 """
@@ -343,31 +343,29 @@ def _walk(top):
 def main(_):
     # here we train and validate the model
 
-    print 'Loading data'
+    print('Loading data')
     training = Dataset('/local/train', 'mean.npy', True, False)
     testing = Dataset('/local/val_images', 'mean.npy', False, True, 'val.txt')
-    print 'Data loaded.'
+    print('Data loaded.')
 
     if len(sys.argv) < 2 or sys.argv[-1].startswith('-'):
         print('Usage: alexnet.py [--training_epoch=x] '
               '[--model_version=y] export_dir')
         sys.exit(-1)
     if FLAGS.training_epoch <= 0:
-        print
-        'Please specify a positive value for training iteration.'
+        print('Please specify a positive value for training iteration.')
         sys.exit(-1)
     if FLAGS.model_version <= 0:
-        print
-        'Please specify a positive value for version number.'
+        print('Please specify a positive value for version number.')
         sys.exit(-1)
 
     batch_size = 128
     display_step = 20
     # training_acc_step = 1000 # think how to use it
     train_size = len(training)
-    print train_size
+    print(train_size)
     n_classes = training.num_labels
-    print n_classes
+    print(n_classes)
     image_size = 227
     img_channel = 3
     num_epochs = FLAGS.training_epoch
@@ -401,7 +399,7 @@ def main(_):
                                                             model_prediction, 1))
 
     start_time = time.time()
-    print "Start time is: " + str(start_time)
+    print("Start time is: " + str(start_time))
     with tf.Session() as sess:
         tf.global_variables_initializer().run()
         tf.local_variables_initializer().run()
@@ -419,12 +417,12 @@ def main(_):
                                feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 1.})
                 loss = sess.run(cost, feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 1.})
                 elapsed_time = time.time() - start_time
-                print " Iter " + str(step) + ", Minibatch Loss= " + "{:.6f}".format(loss) + \
+                print(" Iter " + str(step) + ", Minibatch Loss= " + "{:.6f}".format(loss) + \
                 ", Training Accuracy= " + "{}".format(acc) + " Elapsed time:" + str(elapsed_time) + \
-                "acc_up={}".format(acc_up)
+                "acc_up={}".format(acc_up))
 
-        print "Optimization Finished!"
-        print "Training took" + str(time.time() - start_time)
+        print("Optimization Finished!")
+        print("Training took" + str(time.time() - start_time))
 
         step_test = 1
         acc_list = []
@@ -435,18 +433,18 @@ def main(_):
             acc = sess.run([test_accuracy],
                            feed_dict={x_3d: testing_xs, y: testing_ys, keep_prob: 1.})
             acc_list.append(acc)
-            print "Testing Accuracy:", acc
+            print("Testing Accuracy:", acc)
             step_test += 1
 
-        print "Max accuracy is", max(acc_list)
-        print "Min accuracy is", min(acc_list)
+        print("Max accuracy is", max(acc_list))
+        print("Min accuracy is", min(acc_list))
 
         # save model using SavedModelBuilder from TF
         export_path_base = sys.argv[-1]
         export_path = os.path.join(
             tf.compat.as_bytes(export_path_base),
             tf.compat.as_bytes(str(FLAGS.model_version)))
-        print 'Exporting trained model to', export_path
+        print('Exporting trained model to', export_path)
         builder = tf.saved_model.builder.SavedModelBuilder(export_path)
 
         tensor_info_x = tf.saved_model.utils.build_tensor_info(x_flat)
@@ -470,7 +468,7 @@ def main(_):
 
         builder.save()
 
-        print 'Done exporting!'
+        print('Done exporting!')
 
 
 if __name__ == '__main__':

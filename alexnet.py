@@ -229,21 +229,46 @@ class AlexNet_train(object):
 class Dataset:
     ''' Class for handling Imagenet data '''
 
-    def __init__(self, image_path):
-        self.data = create_image_list(image_path)
-        np.random.shuffle(self.data)
-        self.num_records = len(self.data)
-        self.next_record = 0
+    def __init__(self, image_path, mean_file_name, do_train, use_auxdata = False, auxfile_path = None):
+        # For mean_file_name, convert imagenet_mean.binaryproto to npy format
+        # first using an external tool, such as
+        # https://gist.github.com/Coderx7/26eebeefaa3fb28f654d2951980b80ba.
+        self.use_auxdata = use_auxdata
+        self.do_train = do_train
+        if not use_auxdata:
 
-        self.labels, self.inputs = zip(*self.data)
+            self.data = create_image_list(image_path)
+            np.random.shuffle(self.data)
+            self.num_records = len(self.data)
+            self.next_record = 0
 
-        category = np.unique(self.labels)
-        self.num_labels = len(category)
-        self.category2label = dict(zip(category, range(len(category))))
-        self.label2category = {l: k for k, l in self.category2label.items()}
+            self.labels, self.inputs = zip(*self.data)
 
-        # Convert the labels to numbers
-        self.labels = [self.category2label[l] for l in self.labels]
+            category = np.unique(self.labels).sort()
+            self.num_labels = len(category)
+            self.category2label = dict(zip(category, range(len(category))))
+            self.label2category = {l: k for k, l in self.category2label.items()}
+
+            # Convert the labels to numbers
+            self.labels = [self.category2label[l] for l in self.labels]
+
+        else:
+            with open(auxfile_path, 'r') as f:
+                for line in f:
+                    filename, category_num = line.split(' ')
+                    filename = os.path.join(image_path, filename)
+                    self.data.append([category_num, filename])
+
+            np.random.shuffle(self.data)
+            self.num_records = len(self.data)
+            self.next_record = 0
+            self.labels, self.inputs = zip(*self.data)
+
+        input_mean = np.load(mean_file_name)
+        print('Shape of mean array:', input_mean.shape)
+        self.mean = np.zeros((input_mean.shape[1], input_mean.shape[2], input_mean.shape[0]))
+        for c in range(input_mean.shape[2]):
+            self.mean[:,:,c] = input_mean[c,:,:]
 
     def __len__(self):
         return self.num_records
@@ -259,29 +284,63 @@ class Dataset:
     def has_next_record(self):
         return self.next_record < self.num_records
 
-    def preprocess(self, img):
-        pp = cv2.resize(img, (227, 227))
-        pp = np.asarray(pp, dtype=np.float16) ###### Changed this to float16
-        pp /= 255
-        pp = pp.reshape((pp.shape[0], pp.shape[1], 3))
+    def preprocess(self, img_file_name):
+        img = cv2.imread(img_file_name)
+        if len(img.shape) == 2:
+            #duplicate colors in all channels
+            new_pp = np.zeros(img.shape[0], img.shape[1], 3)
+            new_pp[:,:,0] = img
+            new_pp[:,:,1] = img
+            new_pp[:,:,2] = img
+            img = new_pp
+
+        h = img.shape[0]
+        w = img.shape[1]
+        self.dest_size = 227
+        if h != 256 or w != 256:
+            # crop image - keep smaller dimension, and crop the middle part of
+            # the longer dimension
+            if h > w:
+                cropped = img[(h//2-w//2):(h//2+w//2),:,:]
+            elif w > h:
+                cropped = img[:,(w//2-h//2):(w//2+h//2),:]
+            else:
+                cropped = img
+        # resize image into 256x256
+        cropped = cv2.resize(cropped, (256,256))
+        # subtract mean from image
+        pp = cropped - self.mean
+        offset = 0
+
+        if self.do_train:
+            # randomly crop 227x227 square from the 256x256 square when training
+            offset = np.random.random_integers(0, 256 - dest_size)
+        else:
+            # only crop the center 227x227 square when testing
+            offset = (256 - dest_size) // 2
+        pp = cropped[offset:(offset+dest_size), offset:(offset+dest_size), :]
+        pp = np.asarray(pp, dtype=np.float16)
         return pp
 
     def next_record_f(self):
         if not self.has_next_record():
+            # start from the beginning, reshuffle data
             np.random.shuffle(self.data)
             self.next_record = 0
             self.labels, self.inputs = zip(*self.data)
 
-            category = np.unique(self.labels)
-            self.num_labels = len(category)
-            self.category2label = dict(zip(category, range(len(category))))
-            self.label2category = {l: k for k, l in self.category2label.items()}
+            if not self.use_auxdata:
+                category = np.unique(self.labels)
+                self.num_labels = len(category)
+                self.category2label = dict(zip(category, range(len(category))))
+                self.label2category = {l: k for k, l in self.category2label.items()}
 
-            # Convert the labels to numbers
-            self.labels = [self.category2label[l] for l in self.labels]
+                # Convert the labels to numbers
+                self.labels = [self.category2label[l] for l in self.labels]
+
         # return None
         label = self.onehot(self.labels[self.next_record])
-        input = self.preprocess(cv2.imread(self.inputs[self.next_record]))
+        input = self.preprocess(self.inputs[self.next_record])
         self.next_record += 1
         return label, input
 
@@ -351,12 +410,13 @@ def _walk(top):
 #     tf.add_to_collection('losses', cross_entropy)
 #     return tf.add_n(tf.get_collection('losses'), name='total_cost')
 
+"""
 def main(_):
     # here we train and validate the model
 
     print('Loading data')
-    training = Dataset('/local/train')
-    testing = Dataset('/data/i1k-extracted/val')
+    training = Dataset('/local/train', 'mean.npy', True, False)
+    testing = Dataset('/local/val_images', 'mean.npy', False, True, 'val.txt')
     print('Data loaded.')
 
     if len(sys.argv) < 2 or sys.argv[-1].startswith('-'):
@@ -485,3 +545,4 @@ def main(_):
 
 if __name__ == '__main__':
     tf.app.run()
+"""
