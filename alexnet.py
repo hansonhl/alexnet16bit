@@ -241,7 +241,6 @@ class Dataset:
             print("-- Shuffling data ...")
             np.random.shuffle(self.data)
             self.num_records = len(self.data)
-            print("-- Got ", self.num_records, " data entries")
             print(type(self.data))
             self.next_record = 0
 
@@ -254,8 +253,7 @@ class Dataset:
 
             # Convert the labels to numbers
             self.labels = [self.category2label[l] for l in self.labels]
-
-            print("Finished loading dataset")
+            print("-- Finished loading dataset for train data")
 
         else:
             self.data = []
@@ -269,12 +267,16 @@ class Dataset:
             self.num_records = len(self.data)
             self.next_record = 0
             self.labels, self.inputs = zip(*self.data)
+            self.num_labels = len(np.unique(self.labels))
+            print("-- Finished loading dataset for validation data")
+
+        print("-- Got", self.num_records, "data entries and", self.num_labels, "different labels")
 
         input_mean = np.load(mean_file_name)
-        print('Shape of mean array:', input_mean.shape)
         self.mean = np.zeros((input_mean.shape[1], input_mean.shape[2], input_mean.shape[0]))
         for c in range(self.mean.shape[2]):
             self.mean[:,:,c] = input_mean[c,:,:]
+        print('-- Shape of mean array:', self.mean.shape)
 
     def __len__(self):
         return self.num_records
