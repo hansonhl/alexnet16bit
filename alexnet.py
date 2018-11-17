@@ -191,7 +191,7 @@ class AlexNet_train(object):
         self.pool5 = maxPoolLayer(self.conv5, 3, 3, 2, 2, "pool5", "VALID")
 
         self.fcIn = tf.reshape(self.pool5, [-1, 256 * 6 * 6])
-        self.fc6 = fcLayer_nb(self.fcIn, 256 * 6 * 6, 4096, True, "fc6")
+        self.fc6 = fcLayer(self.fcIn, 256 * 6 * 6, 4096, True, "fc6")
         self.dropout1 = dropout(self.fc6, self.KEEPPRO)
 
         self.fc7 = fcLayer(self.dropout1, 4096, 4096, True, "fc7")
