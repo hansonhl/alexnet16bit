@@ -159,7 +159,7 @@ def convLayer(x, kHeight, kWidth, strideX, strideY,
 
 class AlexNet_train(object):
     """alexNet model"""
-    def __init__(self, x, keepPro, classNum = 1000):
+    def __init__(self, x, keepPro, num_classes = 1000):
         self.X = x
         self.KEEPPRO = keepPro
         self.CLASSNUM = classNum
