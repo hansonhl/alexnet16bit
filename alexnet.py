@@ -423,14 +423,13 @@ def _walk(top):
 #         logits=logits, labels=labels), name='cross_entropy')
 #     tf.add_to_collection('losses', cross_entropy)
 #     return tf.add_n(tf.get_collection('losses'), name='total_cost')
-
+"""
 print('Loading data')
 # training = Dataset('/local/train', 'mean.npy', True, False)
 testing = Dataset('/local/val_images', 'mean.npy', False, True, 'val.txt')
 print('Data loaded.')
 # train_label, train_input = training.next_record_f()
 test_label, test_input = testing.next_record_f()
-
 """
 def main(_):
     # here we train and validate the model
@@ -566,4 +565,3 @@ def main(_):
 
 if __name__ == '__main__':
     tf.app.run()
-"""
