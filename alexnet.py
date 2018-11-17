@@ -236,8 +236,10 @@ class Dataset:
         self.use_auxdata = use_auxdata
         self.do_train = do_train
         if not use_auxdata:
-
+            print("-- Creating image list ...")
             self.data = create_image_list(image_path)
+            print(self.data.shape)
+            print("-- Shuffling data ...")
             np.random.shuffle(self.data)
             self.num_records = len(self.data)
             self.next_record = 0
@@ -251,6 +253,8 @@ class Dataset:
 
             # Convert the labels to numbers
             self.labels = [self.category2label[l] for l in self.labels]
+
+            print("Finished loading dataset, got", self.num_labels, "and ", self.num_records, " inputs")
 
         else:
             with open(auxfile_path, 'r') as f:
