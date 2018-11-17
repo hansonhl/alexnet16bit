@@ -256,12 +256,14 @@ class Dataset:
 
         else:
             self.data = []
+            print("-- Creating image list ...")
             with open(auxfile_path, 'r') as f:
                 for line in f:
                     filename, category_num = line.split(' ')
+                    category_num = int(category_num)
                     filename = os.path.join(image_path, filename)
                     self.data.append([category_num, filename])
-
+            print("-- Shuffling data...")
             np.random.shuffle(self.data)
             self.num_records = len(self.data)
             self.next_record = 0
@@ -282,6 +284,7 @@ class Dataset:
 
     def onehot(self, label):
         v = np.zeros(self.num_labels)
+        print(type(label))
         v[label] = 1
         return v
 
@@ -317,8 +320,6 @@ class Dataset:
         cropped = cv2.resize(cropped, (256,256))
         # subtract mean from image
         pp = cropped - self.mean
-        print(pp)
-        print("256x256 pp:", pp.Shape)
         offset = 0
 
         if self.do_train:
@@ -327,8 +328,12 @@ class Dataset:
         else:
             # only crop the center 227x227 square when testing
             offset = (256 - dest_size) // 2
-        pp = cropped[offset:(offset+dest_size), offset:(offset+dest_size), :]
+        pp = pp[offset:(offset+dest_size), offset:(offset+dest_size), :]
+        print(pp)
+        print("Cropped 227x227 pp", pp.shape)
         pp = np.asarray(pp, dtype=np.float16)
+        print(pp)
+        print("Reduced precision pp:", pp.shape)
         return pp
 
     def next_record_f(self):
@@ -420,12 +425,11 @@ def _walk(top):
 #     return tf.add_n(tf.get_collection('losses'), name='total_cost')
 
 print('Loading data')
-training = Dataset('/local/train', 'mean.npy', True, False)
+# training = Dataset('/local/train', 'mean.npy', True, False)
 testing = Dataset('/local/val_images', 'mean.npy', False, True, 'val.txt')
 print('Data loaded.')
-train_label, train_input = training.next_record_f()
-print(train_label)
-print(train_input.shape)
+# train_label, train_input = training.next_record_f()
+test_label, test_input = testing.next_record_f()
 
 """
 def main(_):
