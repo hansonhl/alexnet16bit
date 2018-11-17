@@ -272,7 +272,7 @@ class Dataset:
         input_mean = np.load(mean_file_name)
         print('Shape of mean array:', input_mean.shape)
         self.mean = np.zeros((input_mean.shape[1], input_mean.shape[2], input_mean.shape[0]))
-        for c in range(input_mean.shape[2]):
+        for c in range(self.mean.shape[2]):
             self.mean[:,:,c] = input_mean[c,:,:]
 
     def __len__(self):
