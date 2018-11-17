@@ -68,7 +68,7 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
         variable = tf.cast(variable, dtype)
     return variable
 
-def variable_with_random_init(name, shape, randstddev):
+def variable_with_random_init(name, shape, stddev):
     var = tf.get_variable(
             name,
             shape,
@@ -149,7 +149,7 @@ def convLayer(x, kHeight, kWidth, strideX, strideY,
             xNew = tf.split(value = x, num_or_size_splits = groups, axis = 3)#input and weights after split
             wNew = tf.split(value = w, num_or_size_splits = groups, axis = 3)
             output_groups = [convolve(t1, t2) for t1, t2 in zip(xNew, wNew)] #retriving the feature map separately
-            conv = tf.concat(axis = 3, values = featureMap) #concatnating feature map
+            conv = tf.concat(axis = 3, values = output_groups) #concatnating feature map
         # print mergeFeatureMap.shape
         bias = tf.reshape(tf.nn.bias_add(conv, b), tf.shape(conv))
         # Clip value
@@ -159,7 +159,7 @@ def convLayer(x, kHeight, kWidth, strideX, strideY,
 
 class AlexNet_train(object):
     """alexNet model"""
-    def __init__(self, x, keepPro, num_classes = 1000):
+    def __init__(self, x, keepPro, classNum = 1000):
         self.X = x
         self.KEEPPRO = keepPro
         self.CLASSNUM = classNum
@@ -469,7 +469,7 @@ def main(_):
     y = tf.placeholder(tf.float32, [None, n_classes])
     keep_prob = tf.placeholder(tf.float32)
 
-    model = AlexNet_train(x_3d, keep_prob, num_classes=n_classes)
+    model = AlexNet_train(x_3d, keep_prob, classNum=n_classes)
     ##### cast logits to float32 to calculate loss
     model_train = tf.cast(model.output(), tf.float32)
 
