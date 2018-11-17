@@ -241,13 +241,13 @@ class Dataset:
             print("-- Shuffling data ...")
             np.random.shuffle(self.data)
             self.num_records = len(self.data)
-            print("-- Got " + self.num_records +" data entries")
+            print("-- Got ", self.num_records, " data entries")
             print(type(self.data))
             self.next_record = 0
 
             self.labels, self.inputs = zip(*self.data)
 
-            category = np.unique(self.labels).sort()
+            category = np.unique(self.labels)
             self.num_labels = len(category)
             self.category2label = dict(zip(category, range(len(category))))
             self.label2category = {l: k for k, l in self.category2label.items()}
