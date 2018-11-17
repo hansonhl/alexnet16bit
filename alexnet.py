@@ -317,6 +317,8 @@ class Dataset:
         cropped = cv2.resize(cropped, (256,256))
         # subtract mean from image
         pp = cropped - self.mean
+        print(pp)
+        print("256x256 pp:", pp.Shape)
         offset = 0
 
         if self.do_train:
