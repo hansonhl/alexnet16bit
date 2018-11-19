@@ -49,6 +49,8 @@ import cv2
 import random
 import numpy as np
 from datetime import datetime
+
+import pickle
 now = datetime.now()
 
 # The following custom getter function is obtained from:
@@ -442,15 +444,33 @@ def main(_):
         print('Please specify a positive value for version number.')
         sys.exit(-1)
     """
+    use_pickle = False
+    create_pickle = True
+    training_pickle_file = 'training.p'
+    testing_pickle_file = 'testing.p'
+
     training_epoch = 1
     model_version = 0.01
     export_dir = "alexout"
 
-
-    print('Loading data')
-    training = Dataset('/local/train', 'mean.npy', True, False)
-    testing = Dataset('/local/val_images', 'mean.npy', False, True, 'val.txt')
-    print('Data loaded.')
+    if not use_pickle:
+        print('Loading data')
+        training = Dataset('/local/train', 'mean.npy', True, False)
+        testing = Dataset('/local/val_images', 'mean.npy', False, True, 'val.txt')
+        if create_pickle:
+            print('Creating pickle files for training and testing data...')
+            with open(training_pickle_file, 'wb') as train_f:
+                pickle.dump(training, train_f)
+            with open(testing_pickle_file, 'wb') as test_f:
+                pickle.dump(testing, test_f)
+            print('Finished creating pickles.')
+        print('Data loaded.')
+    else:
+        print('Loading data from pickle...')
+        with open(training_pickle_file, 'rb') as train_f:
+            training = pickle.load(train_f)
+        with open(testing_pickle_file, 'rb') as test_f:
+            testing = pickle.dump(test_f)
 
     batch_size = 128
     display_step = 20
