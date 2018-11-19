@@ -20,10 +20,8 @@
 
 # Implementation to train Alexnet in 16-bit floating point precision
 # TO DO:
-#   1. Need to find a way to make float16 work with dropout: possibly not use
-#   the storage getter.
-#   2. Implement weight scaling.
-#   3.
+#   1. Run code
+
 
 # What to set for these variables, in the context of float16?
 #   - stddev for random initialization of variables, used paper value of 0.01
@@ -34,8 +32,6 @@
 #Other considerations:
 #   1. Read caffe code to learn more how it trains the network
 #   2. How to use weight decay together with MomentumOptimizer?
-#   3. Consider whether or not to implement Loss scaling, as mentioned in
-#   the NVIDIA tutorial.
 
 
 import tensorflow as tf
@@ -53,6 +49,7 @@ from datetime import datetime
 import pickle
 now = datetime.now()
 
+""
 # The following custom getter function is obtained from:
 # https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html#training_tensorflow
 def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
@@ -70,6 +67,32 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
     if trainable and dtype != tf.float32:
         variable = tf.cast(variable, dtype)
     return variable
+
+class my_float16_variable(object):
+    def __init__(self, name, shape, stddev):
+        self.var_float32 = tf.get_variable(
+            name,
+            shape,
+            initializer=tf.truncated_normal_initializer( #?? What is this?
+                        stddev=stddev,
+                        dtype=tf.float32),
+            dtype=tf.float32,
+            collections="float32_vars"
+        )
+        self.var_float16 = tf.get_variable(
+            name,
+            shape,
+            tf.zeros(shape, dtype=tf.float16),
+            dtype=tf.float16,
+            collectitons="float16_vars"
+        )
+    def get_float16(self):
+        # cast from underlying fp32 to fp16 whenever get_float16 is called
+        self.var_float16 = tf.cast(self.var_float32)
+        return self.var_float16
+    def get_float32(self):
+        return self.var_float32
+
 
 def variable_with_random_init(name, shape, stddev):
     var = tf.get_variable(
@@ -117,10 +140,12 @@ def LRN(x, R, alpha, beta, name = None, bias = 1.0):
 # Fully connect layer with no bound
 def fcLayer(x, inputD, outputD, reluFlag, name):
     """fully-connect"""
-    with tf.variable_scope(name, custom_getter=float32_variable_storage_getter) as scope:
-        w = variable_with_random_init("w", [inputD, outputD], 0.01)
-        #  = tf.get_variable("w", shape = [inputD, outputD], dtype = "float")
-        b = tf.get_variable("b", [outputD], dtype = tf.float16)
+    with tf.variable_scope(name) as scope:
+        w = my_float16_variable("w", [inputD, outputD], 0.01).get_float16()
+        # w = variable_with_random_init("w", [inputD, outputD], 0.01)
+        ## w = tf.get_variable("w", shape = [inputD, outputD], dtype = "float")
+        b = my_float16_variable("w", [outputD], 0.01).get_float16()
+        # b = tf.get_variable("b", [outputD], dtype = tf.float16)
         out = tf.nn.xw_plus_b(x, w, b, name = scope.name)
         if reluFlag:
             return tf.nn.relu(out)
@@ -138,13 +163,14 @@ def convLayer(x, kHeight, kWidth, strideX, strideY,
         a, b,
         strides = [1, strideY, strideX, 1],
         padding = padding)
-    with tf.variable_scope(name, custom_getter=float32_variable_storage_getter) as scope:
-        w = variable_with_random_init(
+    with tf.variable_scope(name) as scope:
+        w = my_float16_variable(
             "w",
             [kHeight, kWidth, channel/groups, featureNum],
-            0.01)
+            0.01).get_float16()
         #w = tf.get_variable("w", shape = [kHeight, kWidth, channel/groups, featureNum])
-        b = tf.get_variable("b", shape = [featureNum], dtype = tf.float16)
+        b = my_float16_variable("b", [featureNum], 0.01).get_float16()
+        #b = tf.get_variable("b", shape = [featureNum], dtype = tf.float16)
 
         if groups == 1:
             conv = convolve(x, w)
@@ -417,6 +443,12 @@ def _walk(top):
         for x in _walk(path):
             yield x
 
+def check_finiteness(grads):
+    for g in grads:
+        if not np.all(np.isfinite(g)):
+            return False
+    return True
+
 # def total_cost(logits, labels):
 #     cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
 #         logits=logits, labels=labels), name='cross_entropy')
@@ -482,29 +514,63 @@ def main(_):
     image_size = 227
     img_channel = 3
     num_epochs = training_epoch
+    initial_scale_factor = 128.
 
+    # -- TRAINING SETUP -- #
+    # -- Setting up placeholders
     x_flat = tf.placeholder(tf.float16, ##### Let input be float16
                             (None, image_size * image_size * img_channel))
     x_3d = tf.reshape(x_flat, shape=(tf.shape(x_flat)[0], image_size,
                                      image_size, img_channel))
     y = tf.placeholder(tf.float16, [None, n_classes])
-    keep_prob = tf.placeholder(tf.float32)
+    keep_prob = tf.placeholder(tf.float16)
+    scale_factor = tf.placeholder(tf.float16)
 
     model = AlexNet_train(x_3d, keep_prob, classNum=n_classes)
-    ##### cast logits to float32 to calculate loss
-    model_train = tf.cast(model.output(), tf.float32)
+    # -- cast logits to float32 to calculate loss
+    output_logits = tf.cast(model.output(), tf.float32)
 
-    model_prediction = tf.nn.softmax(model_train)
+    model_prediction = tf.nn.softmax(output_logits)
+    loss = tf.reduce_mean(
+        tf.nn.softmax_cross_entropy_with_logits(logits=output_logits, labels=y))
 
-    cost = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=y))
+    #-- Loss scaling
+    scaled_loss = tf.cast(loss * scale_factor, tf.float16)
+    # Cast loss to fp16 to ensure outputs of gradient calculation is fp16
 
+    # -- Setting up optimizer
     global_step = tf.Variable(0, trainable=False, name='global_step')
 
     lr = tf.train.exponential_decay(0.01, global_step, 100000, 0.1,
                                     staircase=True)
+    optimizer = tf.train.MomentumOptimizer(
+        learning_rate=lr,
+        momentum=0.9)
 
-    optimizer = tf.train.MomentumOptimizer(learning_rate=lr, momentum=0.9).minimize(cost, global_step=global_step)
+    # -- Step 1, get list of gradients
+    float16_weights = tf.get_collection("float16_vars")
+    grads, _ = zip(*optimizer.compute_gradients(
+        scaled_loss,
+        float16_weights))
+    # -- Step 2, check if there are NaN or inf variables in grads
+
+    # -- Step 3, cast grads to fp32 and downscale
+    float32_grads = [
+        tf.divide(
+            tf.cast(g, tf.float32),
+            tf.cast(scale_factor, tf.float32))
+        for g in grads]
+
+    float32_vars = tf.get_collection("float32_vars")
+    grads_and_vars = zip(float32_grads, float32_vars)
+
+    # -- Step 4, apply weight update
+    apply_gradient_op = optimizer.apply_gradients(
+        grads_and_vars,
+        global_step=global_step
+    )
+
+    # optimizer = tf.train.MomentumOptimizer(learning_rate=lr, momentum=0.9).minimize(cost, global_step=global_step)
 
     accuracy, update_op = tf.metrics.accuracy(labels=tf.argmax(y, 1),
                                               predictions=tf.argmax(model_prediction,
@@ -519,22 +585,48 @@ def main(_):
         tf.global_variables_initializer().run()
         tf.local_variables_initializer().run()
 
-        for step in xrange(int(num_epochs * train_size) // batch_size):
+        step = 0
+        steps_factor_unchanged = 0
+        curr_scale_factor = initial_scale_factor
+
+        while step < int(num_epochs * train_size) // batch_size:
 
             batch_ys, batch_xs = training.next_batch(batch_size)
 
-            sess.run(optimizer, feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 0.5})
-            sess.run(lr)
-            if step % display_step == 0:
-                acc_up = sess.run([accuracy, update_op],
-                                  feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 1.})
-                acc = sess.run(accuracy,
-                               feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 1.})
-                loss = sess.run(cost, feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 1.})
-                elapsed_time = time.time() - start_time
-                print(" Iter " + str(step) + ", Minibatch Loss= " + "{:.6f}".format(loss) + \
-                ", Training Accuracy= " + "{}".format(acc) + " Elapsed time:" + str(elapsed_time) + \
-                "acc_up={}".format(acc_up))
+            train_feed_dict = {
+                x_3d: batch_xs,
+                y: batch_ys,
+                keep_prob: 0.5
+                scale_factor: curr_scale_factor
+            }
+            test_feed_dict = {
+                x_3d: batch_xs,
+                y: batch_ys,
+                keep_prob: 1.
+                scale_factor: curr_scale_factor
+            }
+
+            float16_grads = sess.run(grads, feed_dict=train_feed_dict)
+            # Check if there are invalid gradients here
+            if check_finiteness(float16_grads):
+                # sess.run(optimizer, feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 0.5})
+                sess.run(lr)
+                if step % display_step == 0:
+                    acc_up = sess.run([accuracy, update_op], feed_dict=test_feed_dict)
+                    acc = sess.run(accuracy, feed_dict=test_feed_dict)
+                    loss = sess.run(cost, feed_dict=test_feed_dict)
+                    elapsed_time = time.time() - start_time
+                    print(" Iter " + str(step) + ", Minibatch Loss= " + "{:.6f}".format(loss) + \
+                    ", Training Accuracy= " + "{}".format(acc) + " Elapsed time:" + str(elapsed_time) + \
+                    "acc_up={}".format(acc_up))
+                step += 1
+                steps_factor_unchanged += 1
+                if steps_factor_unchanged >= 500:
+                    steps_factor_unchanged = 0
+                    curr_scale_factor *= 2
+            else:
+                steps_factor_unchanged = 0
+                curr_scale_factor /= 2
 
         print("Optimization Finished!")
         print("Training took" + str(time.time() - start_time))
@@ -564,7 +656,7 @@ def main(_):
         builder = tf.saved_model.builder.SavedModelBuilder(export_path)
 
         tensor_info_x = tf.saved_model.utils.build_tensor_info(x_flat)
-        tensor_info_y = tf.saved_model.utils.build_tensor_info(model_train)
+        tensor_info_y = tf.saved_model.utils.build_tensor_info(output_logits)
         prediction_signature = (
             tf.saved_model.signature_def_utils.build_signature_def(
                 inputs={'images': tensor_info_x},
