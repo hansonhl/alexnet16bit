@@ -20,9 +20,10 @@
 
 # Implementation to train Alexnet in 16-bit floating point precision
 # TO DO:
-#   1. compile code
-#   2. Read remainder of code and run
-#   3. Think about accuracy evaluation
+#   1. Need to find a way to make float16 work with dropout: possibly not use
+#   the storage getter.
+#   2. Implement weight scaling.
+#   3.
 
 # What to set for these variables, in the context of float16?
 #   - stddev for random initialization of variables, used paper value of 0.01
@@ -466,7 +467,7 @@ def main(_):
                             (None, image_size * image_size * img_channel))
     x_3d = tf.reshape(x_flat, shape=(tf.shape(x_flat)[0], image_size,
                                      image_size, img_channel))
-    y = tf.placeholder(tf.float32, [None, n_classes])
+    y = tf.placeholder(tf.float16, [None, n_classes])
     keep_prob = tf.placeholder(tf.float32)
 
     model = AlexNet_train(x_3d, keep_prob, classNum=n_classes)
