@@ -140,10 +140,12 @@ def LRN(x, R, alpha, beta, name = None, bias = 1.0):
 def fcLayer(x, inputD, outputD, reluFlag, name):
     """fully-connect"""
     with tf.variable_scope(name) as scope:
-        w = my_float16_variable("w", [inputD, outputD], 0.01).get_float16()
+        w_init = my_float16_variable("w", [inputD, outputD], 0.01)
+        w = w_init.get_float16()
         # w = variable_with_random_init("w", [inputD, outputD], 0.01)
         ## w = tf.get_variable("w", shape = [inputD, outputD], dtype = "float")
-        b = my_float16_variable("b", [outputD], 0.01).get_float16()
+        b_init = my_float16_variable("b", [outputD], 0.01)
+        b = b_init.get_float16()
         # b = tf.get_variable("b", [outputD], dtype = tf.float16)
         out = tf.nn.xw_plus_b(x, w, b, name = scope.name)
         if reluFlag:
@@ -163,12 +165,14 @@ def convLayer(x, kHeight, kWidth, strideX, strideY,
         strides = [1, strideY, strideX, 1],
         padding = padding)
     with tf.variable_scope(name) as scope:
-        w = my_float16_variable(
+        w_init = my_float16_variable(
             "w",
             [kHeight, kWidth, channel/groups, featureNum],
-            0.01).get_float16()
+            0.01)
+        w = w_init.get_float16()
         #w = tf.get_variable("w", shape = [kHeight, kWidth, channel/groups, featureNum])
-        b = my_float16_variable("b", [featureNum], 0.01).get_float16()
+        b_init = my_float16_variable("b", [featureNum], 0.01)
+        b = b_init.get_float16()
         #b = tf.get_variable("b", shape = [featureNum], dtype = tf.float16)
 
         if groups == 1:
@@ -508,9 +512,7 @@ def main(_):
     display_step = 20
     # training_acc_step = 1000 # think how to use it
     train_size = len(training)
-    print(train_size)
     n_classes = training.num_labels
-    print(n_classes)
     image_size = 227
     img_channel = 3
     num_epochs = training_epoch
@@ -528,14 +530,14 @@ def main(_):
 
     model = AlexNet_train(x_3d, keep_prob, classNum=n_classes)
     # -- cast logits to float32 to calculate loss
-    output_logits = tf.cast(model.output(), tf.float32)
+    output_logits = model.output()
+    # output_logits = tf.cast(model.output(), tf.float32)
 
     model_prediction = tf.nn.softmax(output_logits)
     loss = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(logits=output_logits, labels=y))
-
     #-- Loss scaling
-    scaled_loss = tf.cast(loss * tf.cast(scale_factor, tf.float32), tf.float16)
+    scaled_loss = tf.multiply(loss, scale_factor)
     # Cast loss to fp16 to ensure outputs of gradient calculation is fp16
 
     # -- Setting up optimizer
@@ -549,9 +551,12 @@ def main(_):
 
     # -- Step 1, get list of gradients
     float16_weights = tf.get_collection("float16_vars")
-    grads, _ = zip(*optimizer.compute_gradients(
-        scaled_loss,
-        float16_weights))
+    print(type(float16_weights), len(float16_weights), float16_weights[0])
+    grads_and_vars = optimizer.compute_gradients(scaled_loss, float16_weights)
+    grads, variables = zip(*grads_and_vars)
+    print(type(grads), len(grads), grads[0])
+    print(type(variables), len(variables), variables[0])
+
     # -- Step 2, check if there are NaN or inf variables in grads
 
     # -- Step 3, cast grads to fp32 and downscale
