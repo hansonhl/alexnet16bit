@@ -71,20 +71,20 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
 class my_float16_variable(object):
     def __init__(self, name, shape, stddev):
         self.var_float32 = tf.get_variable(
-            name,
+            name + "_float32",
             shape=shape,
             initializer=tf.truncated_normal_initializer( #?? What is this?
                         stddev=stddev,
                         dtype=tf.float32),
             collections=["float32_vars"]
         )
-        """
+
         self.var_float16 = tf.get_variable(
-            name,
+            name + "_float16",
             initializer=tf.zeros(shape, dtype=tf.float16),
             collections=["float16_vars"]
         )
-        """
+
     def get_float16(self):
         # cast from underlying fp32 to fp16 whenever get_float16 is called
         self.var_float16 = tf.cast(self.var_float32, tf.float16)
@@ -143,7 +143,7 @@ def fcLayer(x, inputD, outputD, reluFlag, name):
         w = my_float16_variable("w", [inputD, outputD], 0.01).get_float16()
         # w = variable_with_random_init("w", [inputD, outputD], 0.01)
         ## w = tf.get_variable("w", shape = [inputD, outputD], dtype = "float")
-        b = my_float16_variable("w", [outputD], 0.01).get_float16()
+        b = my_float16_variable("b", [outputD], 0.01).get_float16()
         # b = tf.get_variable("b", [outputD], dtype = tf.float16)
         out = tf.nn.xw_plus_b(x, w, b, name = scope.name)
         if reluFlag:
