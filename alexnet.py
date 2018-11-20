@@ -72,7 +72,7 @@ class my_float16_variable(object):
     def __init__(self, name, shape, stddev):
         self.var_float32 = tf.get_variable(
             name,
-            shape,
+            shape=shape,
             initializer=tf.truncated_normal_initializer( #?? What is this?
                         stddev=stddev,
                         dtype=tf.float32),
@@ -80,8 +80,7 @@ class my_float16_variable(object):
         )
         self.var_float16 = tf.get_variable(
             name,
-            shape,
-            tf.zeros(shape, dtype=tf.float16),
+            initializer=tf.zeros(shape, dtype=tf.float16),
             collections=["float16_vars"]
         )
     def get_float16(self):
@@ -501,7 +500,8 @@ def main(_):
             training = pickle.load(train_f)
         with open(testing_pickle_file, 'rb') as test_f:
             testing = pickle.load(test_f)
-    
+        print("Finished loading data from pickle")
+
     batch_size = 128
     display_step = 20
     # training_acc_step = 1000 # think how to use it
