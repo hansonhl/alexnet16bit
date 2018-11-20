@@ -78,11 +78,13 @@ class my_float16_variable(object):
                         dtype=tf.float32),
             collections=["float32_vars"]
         )
+        """
         self.var_float16 = tf.get_variable(
             name,
             initializer=tf.zeros(shape, dtype=tf.float16),
             collections=["float16_vars"]
         )
+        """
     def get_float16(self):
         # cast from underlying fp32 to fp16 whenever get_float16 is called
         self.var_float16 = tf.cast(self.var_float32, tf.float16)
