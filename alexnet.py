@@ -535,7 +535,7 @@ def main(_):
         tf.nn.softmax_cross_entropy_with_logits(logits=output_logits, labels=y))
 
     #-- Loss scaling
-    scaled_loss = tf.cast(loss * scale_factor, tf.float16)
+    scaled_loss = tf.cast(loss * tf.cast(scale_factor, tf.float32), tf.float16)
     # Cast loss to fp16 to ensure outputs of gradient calculation is fp16
 
     # -- Setting up optimizer
