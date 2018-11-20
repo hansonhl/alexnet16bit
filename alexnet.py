@@ -530,14 +530,14 @@ def main(_):
 
     model = AlexNet_train(x_3d, keep_prob, classNum=n_classes)
     # -- cast logits to float32 to calculate loss
-    output_logits = model.output()
-    # output_logits = tf.cast(model.output(), tf.float32)
+
+    output_logits = tf.cast(model.output(), tf.float32)
 
     model_prediction = tf.nn.softmax(output_logits)
     loss = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(logits=output_logits, labels=y))
     #-- Loss scaling
-    scaled_loss = tf.multiply(loss, scale_factor)
+    scaled_loss = tf.multiply(loss, tf.cast(scale_factor, tf.float32))
     # Cast loss to fp16 to ensure outputs of gradient calculation is fp16
 
     # -- Setting up optimizer
@@ -550,23 +550,15 @@ def main(_):
         momentum=0.9)
 
     # -- Step 1, get list of gradients
-    float16_weights = tf.get_collection("float16_vars")
-    print(type(float16_weights), len(float16_weights), float16_weights[0])
-    grads_and_vars = optimizer.compute_gradients(scaled_loss, float16_weights)
-    grads, variables = zip(*grads_and_vars)
-    print(type(grads), len(grads), grads[0])
-    print(type(variables), len(variables), variables[0])
+    float32_vars = tf.get_collection("float32_vars")
+
+    float32_grads = tf.gradients(scaled_loss, float32_vars)
 
     # -- Step 2, check if there are NaN or inf variables in grads
 
     # -- Step 3, cast grads to fp32 and downscale
-    float32_grads = [
-        tf.divide(
-            tf.cast(g, tf.float32),
-            tf.cast(scale_factor, tf.float32))
-        for g in grads]
+    float32_grads = [tf.divide(g, scale_factor) for g in float32_grads]
 
-    float32_vars = tf.get_collection("float32_vars")
     grads_and_vars = zip(float32_grads, float32_vars)
 
     # -- Step 4, apply weight update
