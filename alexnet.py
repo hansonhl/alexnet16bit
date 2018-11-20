@@ -76,19 +76,17 @@ class my_float16_variable(object):
             initializer=tf.truncated_normal_initializer( #?? What is this?
                         stddev=stddev,
                         dtype=tf.float32),
-            dtype=tf.float32,
-            collections="float32_vars"
+            collections=["float32_vars"]
         )
         self.var_float16 = tf.get_variable(
             name,
             shape,
             tf.zeros(shape, dtype=tf.float16),
-            dtype=tf.float16,
-            collectitons="float16_vars"
+            collections=["float16_vars"]
         )
     def get_float16(self):
         # cast from underlying fp32 to fp16 whenever get_float16 is called
-        self.var_float16 = tf.cast(self.var_float32)
+        self.var_float16 = tf.cast(self.var_float32, tf.float16)
         return self.var_float16
     def get_float32(self):
         return self.var_float32
@@ -476,8 +474,8 @@ def main(_):
         print('Please specify a positive value for version number.')
         sys.exit(-1)
     """
-    use_pickle = False
-    create_pickle = True
+    use_pickle = True
+    create_pickle = False
     training_pickle_file = 'training.p'
     testing_pickle_file = 'testing.p'
 
@@ -502,8 +500,8 @@ def main(_):
         with open(training_pickle_file, 'rb') as train_f:
             training = pickle.load(train_f)
         with open(testing_pickle_file, 'rb') as test_f:
-            testing = pickle.dump(test_f)
-
+            testing = pickle.load(test_f)
+    
     batch_size = 128
     display_step = 20
     # training_acc_step = 1000 # think how to use it
@@ -596,13 +594,13 @@ def main(_):
             train_feed_dict = {
                 x_3d: batch_xs,
                 y: batch_ys,
-                keep_prob: 0.5
+                keep_prob: 0.5,
                 scale_factor: curr_scale_factor
             }
             test_feed_dict = {
                 x_3d: batch_xs,
                 y: batch_ys,
-                keep_prob: 1.
+                keep_prob: 1.,
                 scale_factor: curr_scale_factor
             }
 
