@@ -316,7 +316,7 @@ class Dataset:
 
     def onehot(self, label):
         v = np.zeros(self.num_labels)
-        print(type(label))
+        # print(type(label))
         v[label] = 1
         return v
 
@@ -480,7 +480,7 @@ def main(_):
         sys.exit(-1)
     """
     use_pickle = True
-    create_pickle = False 
+    create_pickle = False
     training_pickle_file = 'training.p'
     testing_pickle_file = 'testing.p'
 
@@ -603,11 +603,12 @@ def main(_):
                 scale_factor: curr_scale_factor
             }
 
-            float16_grads = sess.run(grads, feed_dict=train_feed_dict)
+            float32_grads = sess.run(float32_grads, feed_dict=train_feed_dict)
             # Check if there are invalid gradients here
-            if check_finiteness(float16_grads):
+            if check_finiteness(float32_grads):
                 # sess.run(optimizer, feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 0.5})
                 sess.run(lr)
+                sess.run(apply_gradient_op, feed_dict=train_feed_dict);
                 if step % display_step == 0:
                     acc_up = sess.run([accuracy, update_op], feed_dict=test_feed_dict)
                     acc = sess.run(accuracy, feed_dict=test_feed_dict)
@@ -621,6 +622,7 @@ def main(_):
                 if steps_factor_unchanged >= 500:
                     steps_factor_unchanged = 0
                     curr_scale_factor *= 2
+                    print("-- Doubling scale factor by 2 to", curr_scale_factor)
             else:
                 steps_factor_unchanged = 0
                 curr_scale_factor /= 2
