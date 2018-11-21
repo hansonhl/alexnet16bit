@@ -45,9 +45,9 @@ import cv2
 import random
 import numpy as np
 from datetime import datetime
+import time
 
 import pickle
-now = datetime.now()
 
 ""
 # The following custom getter function is obtained from:
@@ -480,7 +480,7 @@ def main(_):
         sys.exit(-1)
     """
     use_pickle = True
-    create_pickle = False
+    create_pickle = False 
     training_pickle_file = 'training.p'
     testing_pickle_file = 'testing.p'
 
@@ -524,9 +524,9 @@ def main(_):
                             (None, image_size * image_size * img_channel))
     x_3d = tf.reshape(x_flat, shape=(tf.shape(x_flat)[0], image_size,
                                      image_size, img_channel))
-    y = tf.placeholder(tf.float16, [None, n_classes])
+    y = tf.placeholder(tf.float32, [None, n_classes])
     keep_prob = tf.placeholder(tf.float16)
-    scale_factor = tf.placeholder(tf.float16)
+    scale_factor = tf.placeholder(tf.float32)
 
     model = AlexNet_train(x_3d, keep_prob, classNum=n_classes)
     # -- cast logits to float32 to calculate loss
