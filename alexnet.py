@@ -69,19 +69,31 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
     return variable
 
 class my_float16_variable(object):
-    def __init__(self, name, shape, stddev):
-        self.var_float32 = tf.get_variable(
-            name + "_float32",
-            shape=shape,
-            initializer=tf.truncated_normal_initializer( #?? What is this?
-                        stddev=stddev,
-                        dtype=tf.float32),
-            collections=["float32_vars"]
-        )
+    def __init__(self, name, shape, stddev, randomFlag = True):
+        if randomFlag:
+            self.var_float32 = tf.get_variable(
+                name + "_float32",
+                shape=shape,
+                initializer=tf.truncated_normal_initializer( #?? What is this?
+                            stddev=stddev,
+                            dtype=tf.float32),
+                collections=["float32_vars"]
+            )
+        else:
+            self.var_float32 = tf.get_variable(
+                name + "_float32",
+                shape=shape,
+                dtype=tf.float32,
+                initializer=tf.zeros_initializer,
+                collections=["float32_vars"]
+            )
+
 
         self.var_float16 = tf.get_variable(
             name + "_float16",
-            initializer=tf.zeros(shape, dtype=tf.float16),
+            shape=shape
+            dtype=tf.float16,
+            initializer=tf.zeros_initializer,
             collections=["float16_vars"]
         )
 
