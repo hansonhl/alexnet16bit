@@ -91,7 +91,7 @@ class my_float16_variable(object):
 
         self.var_float16 = tf.get_variable(
             name + "_float16",
-            shape=shape
+            shape=shape,
             dtype=tf.float16,
             initializer=tf.zeros_initializer,
             collections=["float16_vars"]
