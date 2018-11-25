@@ -609,13 +609,13 @@ def main(_):
                 x_3d: batch_xs,
                 y: batch_ys,
                 keep_prob: np.float16(0.5),
-                scale_factor: float(curr_scale_factor)
+                scale_factor: 64.
             }
             test_feed_dict = {
                 x_3d: batch_xs,
                 y: batch_ys,
                 keep_prob: np.float16(1.),
-                scale_factor: float(curr_scale_factor)
+                scale_factor: 64.
             }
             print("  Got batch of Xs (size", len(batch_xs), "type", type(batch_xs[0]), ") and ys (size", len(batch_ys), "type", type(batch_ys[0]), ")")
             print("  Calculating and applying gradients")
