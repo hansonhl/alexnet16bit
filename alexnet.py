@@ -601,7 +601,7 @@ def main(_):
         curr_scale_factor = initial_scale_factor
 
         while step < int(num_epochs * train_size) // batch_size:
-            print("Executing step", step)
+            print("--EXECUTING STEP", step, "--")
 
             batch_ys, batch_xs = training.next_batch(batch_size)
 
@@ -617,31 +617,41 @@ def main(_):
                 keep_prob: 1.,
                 scale_factor: curr_scale_factor
             }
+            print("  Got batch of Xs (size", batch_xs.shape[0] ") and ys (size", batch_ys.shape[0] ")")
+            print("  Calculating and applying gradients")
 
+            """
             float32_grads = sess.run(float32_grads, feed_dict=train_feed_dict)
             print("Checking gradients ")
             # Check if there are invalid gradients here
             if check_finiteness(float32_grads):
-                # sess.run(optimizer, feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 0.5})
-                sess.run(lr)
-                sess.run(apply_gradient_op, feed_dict=train_feed_dict);
-                if step % display_step == 0:
-                    acc_up = sess.run([accuracy, update_op], feed_dict=test_feed_dict)
-                    acc = sess.run(accuracy, feed_dict=test_feed_dict)
-                    loss = sess.run(cost, feed_dict=test_feed_dict)
-                    elapsed_time = time.time() - start_time
-                    print(" Iter " + str(step) + ", Minibatch Loss= " + "{:.6f}".format(loss) + \
-                    ", Training Accuracy= " + "{}".format(acc) + " Elapsed time:" + str(elapsed_time) + \
-                    "acc_up={}".format(acc_up))
-                step += 1
-                steps_factor_unchanged += 1
-                if steps_factor_unchanged >= 500:
-                    steps_factor_unchanged = 0
-                    curr_scale_factor *= 2
-                    print("-- Doubling scale factor by 2 to", curr_scale_factor)
+                #
+                """
+            sess.run(apply_gradient_op, feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 0.5})
+            sess.run(lr)
+            print("  Finished applying gradients")
+            # sess.run(apply_gradient_op, feed_dict=train_feed_dict);
+            if step % display_step == 0:
+                acc_up = sess.run([accuracy, update_op], feed_dict=test_feed_dict)
+                acc = sess.run(accuracy, feed_dict=test_feed_dict)
+                loss = sess.run(cost, feed_dict=test_feed_dict)
+                elapsed_time = time.time() - start_time
+                print(" Iter " + str(step) + ", Minibatch Loss= " + "{:.6f}".format(loss) + \
+                ", Training Accuracy= " + "{}".format(acc) + " Elapsed time:" + str(elapsed_time) + \
+                "acc_up={}".format(acc_up))
+            step += 1
+            """
+            steps_factor_unchanged += 1
+            if steps_factor_unchanged >= 500:
+                steps_factor_unchanged = 0
+                curr_scale_factor *= 2
+                print("-- Doubling scale factor by 2 to", curr_scale_factor)
+            """
+            """
             else:
                 steps_factor_unchanged = 0
                 curr_scale_factor /= 2
+            """
 
         print("Optimization Finished!")
         print("Training took" + str(time.time() - start_time))
