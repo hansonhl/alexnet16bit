@@ -608,14 +608,14 @@ def main(_):
             train_feed_dict = {
                 x_3d: batch_xs,
                 y: batch_ys,
-                keep_prob: 0.5.astype(float16),
-                scale_factor: curr_scale_factor.astype(float32)
+                keep_prob: np.float16(0.5),
+                scale_factor: np.float32(curr_scale_factor)
             }
             test_feed_dict = {
                 x_3d: batch_xs,
                 y: batch_ys,
-                keep_prob: 1..astype(float16),
-                scale_factor: curr_scale_factor.astype(float32)
+                keep_prob: np.float16(1.),
+                scale_factor: np.float32(curr_scale_factor)
             }
             print("  Got batch of Xs (size", len(batch_xs), "type", type(batch_xs[0]), ") and ys (size", len(batch_ys), "type", type(batch_ys[0]), ")")
             print("  Calculating and applying gradients")
