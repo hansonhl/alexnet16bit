@@ -563,6 +563,7 @@ def main(_):
 
     # -- Step 1, get list of gradients
     float32_vars = tf.get_collection("float32_vars")
+    float16_vars = tf.get_collection("float16_vars")
 
     float32_grads = tf.gradients(scaled_loss, float32_vars)
 
@@ -591,8 +592,9 @@ def main(_):
     start_time = time.time()
     print("Start time is: " + str(start_time))
     with tf.Session() as sess:
-        init = tf.initialize_all_variables()
-        sess.run(init)
+        sess.run(tf.initialize_all_variables())
+        sess.run(tf.variables_initializer(var_list=float32_vars))
+        sess.run(tf.variables_initializer(var_list=float16_vars))
 
         step = 0
         steps_factor_unchanged = 0
