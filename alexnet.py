@@ -591,8 +591,8 @@ def main(_):
     start_time = time.time()
     print("Start time is: " + str(start_time))
     with tf.Session() as sess:
-        tf.global_variables_initializer().run()
-        tf.local_variables_initializer().run()
+        init = tf.initialize_all_variables()
+        sess.run(init)
 
         step = 0
         steps_factor_unchanged = 0
