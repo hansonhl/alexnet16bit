@@ -520,8 +520,8 @@ def main(_):
             testing = pickle.load(test_f)
         print("Finished loading data from pickle")
 
-    batch_size = 128
-    display_step = 20
+    batch_size = 64
+    display_step = 5
     # training_acc_step = 1000 # think how to use it
     train_size = len(training)
     n_classes = training.num_labels
@@ -574,7 +574,7 @@ def main(_):
 
     grads_and_vars = zip(float32_grads, float32_vars)
 
-    # -- Step 4, apply weight update
+    # -- Step 4, apply wdisplay_stepeight update
     apply_gradient_op = optimizer.apply_gradients(
         grads_and_vars,
         global_step=global_step
@@ -600,9 +600,10 @@ def main(_):
         step = 0
         steps_factor_unchanged = 0
         curr_scale_factor = initial_scale_factor
+        total_steps = int(num_epochs * train_size) // batch_size - 1
 
         while step < int(num_epochs * train_size) // batch_size:
-            print("--EXECUTING STEP", step, "--")
+            print("--EXECUTING STEP", step, " out of", total_steps)
 
             batch_ys, batch_xs = training.next_batch(batch_size)
 
@@ -619,7 +620,7 @@ def main(_):
                 scale_factor: np.float32(curr_scale_factor)
             }
             if step % display_step == 0:
-                print("  Got batch of ", len(batch_xs), "Xs each with type", type(batch_xs[0]), "shape", batch_ys[0].shape)
+                print("  Got batch of ", len(batch_xs), "Xs each with type", type(batch_xs[0]), "shape", batch_xs[0].shape)
                 print("  Got batch of ", len(batch_ys), "ys each with type", type(batch_ys[0]), "shape", batch_ys[0].shape)
             print("  Calculating and applying gradients")
 
