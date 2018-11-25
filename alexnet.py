@@ -592,7 +592,7 @@ def main(_):
     start_time = time.time()
     print("Start time is: " + str(start_time))
     with tf.Session() as sess:
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
         sess.run(tf.variables_initializer(var_list=float32_vars))
         sess.run(tf.variables_initializer(var_list=float16_vars))
 
@@ -601,6 +601,7 @@ def main(_):
         curr_scale_factor = initial_scale_factor
 
         while step < int(num_epochs * train_size) // batch_size:
+            print("Executing step", step)
 
             batch_ys, batch_xs = training.next_batch(batch_size)
 
@@ -618,6 +619,7 @@ def main(_):
             }
 
             float32_grads = sess.run(float32_grads, feed_dict=train_feed_dict)
+            print("Checking gradients ")
             # Check if there are invalid gradients here
             if check_finiteness(float32_grads):
                 # sess.run(optimizer, feed_dict={x_3d: batch_xs, y: batch_ys, keep_prob: 0.5})
