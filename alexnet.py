@@ -593,6 +593,7 @@ def main(_):
     print("Start time is: " + str(start_time))
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
+        sess.run(tf.local_variables_initializer())
         sess.run(tf.variables_initializer(var_list=float32_vars))
         sess.run(tf.variables_initializer(var_list=float16_vars))
 
@@ -625,8 +626,7 @@ def main(_):
             print("Checking gradients ")
             # Check if there are invalid gradients here
             if check_finiteness(float32_grads):
-                #
-                """
+            """
             sess.run(apply_gradient_op, feed_dict=train_feed_dict)
             sess.run(lr)
             print("  Finished applying gradients")
