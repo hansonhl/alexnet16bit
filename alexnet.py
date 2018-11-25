@@ -617,7 +617,7 @@ def main(_):
                 keep_prob: 1.,
                 scale_factor: curr_scale_factor
             }
-            print("  Got batch of Xs (size", batch_xs.shape[0] ") and ys (size", batch_ys.shape[0] ")")
+            print("  Got batch of Xs (size", len(batch_xs), "type", type(batch_xs[0]), ") and ys (size", len(batch_ys), "type", type(batch_ys[0]), ")")
             print("  Calculating and applying gradients")
 
             """
