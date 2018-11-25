@@ -533,12 +533,12 @@ def main(_):
     # -- TRAINING SETUP -- #
     # -- Setting up placeholders
     x_flat = tf.placeholder(tf.float16, ##### Let input be float16
-                            (None, image_size * image_size * img_channel), "input_x")
+                            (None, image_size * image_size * img_channel), name="input_x")
     x_3d = tf.reshape(x_flat, shape=(tf.shape(x_flat)[0], image_size,
                                      image_size, img_channel))
-    y = tf.placeholder(tf.float32, [None, n_classes], "label")
-    keep_prob = tf.placeholder(tf.float16, "keep_prob")
-    scale_factor = tf.placeholder(tf.float32, "scale_factor")
+    y = tf.placeholder(tf.float32, [None, n_classes], name="label")
+    keep_prob = tf.placeholder(tf.float16, name="keep_prob")
+    scale_factor = tf.placeholder(tf.float32, name="scale_factor")
 
     model = AlexNet_train(x_3d, keep_prob, classNum=n_classes)
     # -- cast logits to float32 to calculate loss
