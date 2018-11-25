@@ -618,7 +618,9 @@ def main(_):
                 keep_prob: np.float16(1.),
                 scale_factor: np.float32(curr_scale_factor)
             }
-            print("  Got batch of Xs (size", len(batch_xs), "type", type(batch_xs[0]), ") and ys (size", len(batch_ys), "type", type(batch_ys[0]), ")")
+            if step % display_step == 0:
+                print("  Got batch of ", len(batch_xs), "Xs each with type", type(batch_xs[0]), "shape", batch_ys[0].shape)
+                print("  Got batch of ", len(batch_ys), "ys each with type", type(batch_ys[0]), "shape", batch_ys[0].shape)
             print("  Calculating and applying gradients")
 
             """
@@ -634,7 +636,7 @@ def main(_):
             if step % display_step == 0:
                 acc_up = sess.run([accuracy, update_op], feed_dict=test_feed_dict)
                 acc = sess.run(accuracy, feed_dict=test_feed_dict)
-                loss = sess.run(cost, feed_dict=test_feed_dict)
+                loss = sess.run(loss, feed_dict=test_feed_dict)
                 elapsed_time = time.time() - start_time
                 print(" Iter " + str(step) + ", Minibatch Loss= " + "{:.6f}".format(loss) + \
                 ", Training Accuracy= " + "{}".format(acc) + " Elapsed time:" + str(elapsed_time) + \
