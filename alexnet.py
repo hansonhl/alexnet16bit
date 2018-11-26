@@ -637,9 +637,9 @@ def main(_):
             if step % display_step == 0:
                 acc_up = sess.run([accuracy, update_op], feed_dict=test_feed_dict)
                 acc = sess.run(accuracy, feed_dict=test_feed_dict)
-                loss = sess.run(loss, feed_dict=test_feed_dict)
+                curr_loss = sess.run(loss, feed_dict=test_feed_dict)
                 elapsed_time = time.time() - start_time
-                print(" Iter " + str(step) + ", Minibatch Loss= " + "{:.6f}".format(loss) + \
+                print(" Iter " + str(step) + ", Minibatch Loss= " + "{:.6f}".format(curr_loss) + \
                 ", Training Accuracy= " + "{}".format(acc) + " Elapsed time:" + str(elapsed_time) + \
                 "acc_up={}".format(acc_up))
             step += 1
