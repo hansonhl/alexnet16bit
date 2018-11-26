@@ -610,14 +610,14 @@ def main(_):
             train_feed_dict = {
                 x_3d: batch_xs,
                 y: batch_ys,
-                keep_prob: np.float16(0.5),
-                scale_factor: np.float32(curr_scale_factor)
+                keep_prob: 0.5,
+                scale_factor: curr_scale_factor
             }
             test_feed_dict = {
                 x_3d: batch_xs,
                 y: batch_ys,
-                keep_prob: np.float16(1.),
-                scale_factor: np.float32(curr_scale_factor)
+                keep_prob: 1.,
+                scale_factor: curr_scale_factor
             }
             if step % display_step == 0:
                 print("  Got batch of ", len(batch_xs), "Xs each with type", type(batch_xs[0]), "shape", batch_xs[0].shape)
