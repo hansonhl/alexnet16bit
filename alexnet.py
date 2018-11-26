@@ -351,6 +351,7 @@ class Dataset:
         h = img.shape[0]
         w = img.shape[1]
         dest_size = 227
+        cropped = img
         if h != 256 or w != 256:
             # crop image - keep smaller dimension, and crop the middle part of
             # the longer dimension
